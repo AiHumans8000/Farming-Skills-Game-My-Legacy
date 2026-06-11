@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Farming Skill Master Legacy</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+body{background:#0a1f0a;color:#0f0;font-family:'Courier New',Courier,monospace;overflow:hidden;height:100vh}
+/* NAME SCREEN */
+#nameScreen{position:fixed;inset:0;background:#0a1f0a;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;z-index:999;padding:20px}
+#nameScreen h1{font-size:clamp(14px,4vw,26px);font-weight:900;color:#0f0;text-shadow:0 0 16px #0f0;text-align:center;letter-spacing:3px;line-height:1.8}
+#nameScreen p{color:#8f8;font-size:13px;text-align:center}
+#nameInput{background:#000;border:2px solid #0f0;color:#0f0;font-family:'Courier New',monospace;font-size:16px;padding:12px;border-radius:4px;outline:none;text-align:center;width:260px}
+#nameInput::placeholder{color:#484}
+/* GAME */
+#game{display:none;flex-direction:column;height:100vh}
+header{background:#000;padding:6px;text-align:center;border-bottom:3px solid #0f0;flex-shrink:0}
+header h1{font-size:clamp(10px,2.5vw,18px);font-weight:900;color:#0f0;text-shadow:0 0 8px #0f0;letter-spacing:2px}
+.container{display:flex;flex:1;overflow:hidden;min-height:0}
+#sidebar{width:200px;min-width:200px;background:#081808;padding:6px;overflow-y:auto;border-right:2px solid #0f0;flex-shrink:0}
+#main{flex:1;overflow:hidden;background:#0a2a0a;display:flex;align-items:center;justify-content:center}
+@media(max-width:580px){
+  .container{flex-direction:column}
+  #sidebar{width:100%;min-width:unset;height:auto;max-height:42vh;border-right:none;border-bottom:2px solid #0f0;overflow-y:auto}
+  #main{flex:1;min-height:0}
+}
+canvas{image-rendering:pixelated;display:block;max-width:100%;max-height:100%}
+/* BUTTONS */
+.btn{font-family:'Courier New',Courier,monospace;font-weight:bold;padding:6px 8px;margin:3px 0;background:#000;color:#0f0;border:1px solid #0f0;cursor:pointer;font-size:11px;width:100%;border-radius:3px;transition:all .15s;text-align:left}
+.btn:hover,.btn:active{background:#0f0;color:#000}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn-sm{width:auto;padding:3px 7px;font-size:10px;margin:2px}
+.btn-gold{border-color:#ffcc00;color:#ffcc00}.btn-gold:hover{background:#ffcc00;color:#000}
+.btn-blue{border-color:#44aaff;color:#44aaff}.btn-blue:hover{background:#44aaff;color:#000}
+.btn-red{border-color:#ff4444;color:#ff4444}.btn-red:hover{background:#ff4444;color:#fff}
+/* TABS */
+.tab{display:none}.tab.active{display:block}
+/* PLAYER INFO */
+#pinfo{background:#000;border:1px solid #0f0;padding:6px;border-radius:3px;margin-bottom:6px;font-size:11px;line-height:2}
+/* NAV */
+.nav-row{display:flex;flex-wrap:wrap;gap:3px;margin-bottom:6px}
+.nav-row .btn{width:auto;flex:1;font-size:10px;padding:5px 4px;text-align:center}
+hr{border:1px solid #1a4a1a;margin:5px 0}
+h3{font-size:11px;color:#0f0;margin:6px 0 4px;text-shadow:0 0 5px #0f0;font-weight:bold}
+/* SHOP ITEMS */
+.shop-item{background:#000;border:1px solid #1a4a1a;border-radius:3px;padding:6px;margin-bottom:5px}
+.shop-item-name{font-size:11px;font-weight:bold;color:#0f0;margin-bottom:3px}
+.shop-item-desc{font-size:10px;color:#6a8a6a;margin-bottom:4px;line-height:1.5}
+.shop-item-row{display:flex;justify-content:space-between;align-items:center}
+.price-tag{font-size:11px;color:#ffcc00}
+/* SAVE SLOTS */
+.slot{background:#000;border:1px solid #1a4a1a;border-radius:3px;padding:5px;margin-bottom:5px;font-size:10px}
+.slot-header{display:flex;justify-content:space-between;margin-bottom:4px;color:#8f8}
+/* INVENTORY */
+.inv-item{display:flex;justify-content:space-between;align-items:center;padding:4px 6px;background:#000;border:1px solid #1a4a1a;border-radius:3px;margin-bottom:3px;font-size:11px}
+.inv-qty{color:#ffcc00;font-weight:bold}
+/* TOAST */
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#000;border:2px solid #0f0;color:#0f0;padding:8px 16px;border-radius:20px;font-size:12px;z-index:9999;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap}
+/* XP BAR */
+.xp-bar-bg{background:#001100;height:6px;border-radius:3px;border:1px solid #0f0;overflow:hidden;margin-top:3px}
+.xp-bar-fill{height:100%;background:#00ff44;transition:width .4s;border-radius:3px}
+</style>
+</head>
+<body>
+
+<!-- NAME SCREEN -->
+<div id="nameScreen">
+  <div style="font-size:60px;animation:float 3s ease-in-out infinite">🌾</div>
+  <h1>FARMING SKILL<br>MASTER LEGACY</h1>
+  <p>Enter your farmer name to begin!</p>
+  <input type="text" id="nameInput" placeholder="Your name..." maxlength="16">
+  <button class="btn btn-gold" onclick="beginGame()" style="width:260px;font-size:14px;padding:12px;text-align:center">🌱 START FARMING</button>
+  <p style="font-size:11px;color:#484">Plant crops • Harvest • Level up • Build your legacy</p>
+</div>
+
+<style>@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}</style>
+
+<!-- GAME SCREEN -->
+<div id="game">
+  <header><h1>🌾 FARMING SKILL MASTER LEGACY 🌾</h1></header>
+  <div class="container">
+    <div id="sidebar">
+      <div id="pinfo">Loading...</div>
+      <div class="nav-row">
+        <button class="btn" onclick="showTab('farm')">🌾Farm</button>
+        <button class="btn" onclick="showTab('shop')">🛒Shop</button>
+        <button class="btn" onclick="showTab('inn')">🏠Inn</button>
+        <button class="btn" onclick="showTab('inv')">📦Bag</button>
+        <button class="btn" onclick="showTab('save')">💾Save</button>
+      </div>
+
+      <!-- FARM TAB -->
+      <div id="farm-tab" class="tab active">
+        <h3>🌱 Crymea Village</h3>
+        <div style="font-size:11px;color:#8f8;margin-bottom:6px">
+          Day: <span id="sDay" style="color:#ff0">1</span> &nbsp;
+          🌤 <span id="sWx" style="color:#8ff">Sunny</span>
+        </div>
+        <hr>
+        <div style="font-size:10px;color:#6a8a6a;margin-bottom:4px">🌾 PLANT (uses seeds from bag):</div>
+        <button class="btn" onclick="plantCrop('Wheat')">🌾 Plant Wheat</button>
+        <button class="btn" onclick="plantCrop('Tomato')">🍅 Plant Tomato</button>
+        <button class="btn" onclick="plantCrop('Carrot')">🥕 Plant Carrot</button>
+        <button class="btn" onclick="plantCrop('Potato')">🥔 Plant Potato</button>
+        <hr>
+        <button class="btn btn-blue" onclick="waterAll()">💧 Water All Crops</button>
+        <button class="btn btn-gold" onclick="harvestAll()">✂️ Harvest Ready</button>
+        <button class="btn btn-red" onclick="sellAll()">💰 Sell All Crops</button>
+      </div>
+
+      <!-- SHOP TAB -->
+      <div id="shop-tab" class="tab">
+        <h3>🛒 Crymea Store</h3>
+        <div id="shopItems"></div>
+      </div>
+
+      <!-- INN TAB -->
+      <div id="inn-tab" class="tab">
+        <h3>🏠 Crymea Inn</h3>
+        <div style="font-size:11px;color:#8a8;margin-bottom:8px;line-height:1.8">Rest to restore stamina &amp; start a new day. Crops continue growing!</div>
+        <div style="background:#000;border:1px solid #0f0;padding:8px;border-radius:4px;margin-bottom:8px;font-size:11px">
+          <div>💰 Cost: <span style="color:#ffcc00">500g</span></div>
+          <div>⚡ Restores: <span style="color:#00ff44">Full Stamina</span></div>
+          <div>📅 Advances: <span style="color:#8ff">+1 Day</span></div>
+        </div>
+        <button class="btn btn-gold" onclick="restAtInn()">😴 Rest for Night (500g)</button>
+      </div>
+
+      <!-- INVENTORY TAB -->
+      <div id="inv-tab" class="tab">
+        <h3>📦 Inventory</h3>
+        <div style="font-size:10px;color:#6a8a6a;margin-bottom:6px">Seeds, crops &amp; items</div>
+        <div id="invList"></div>
+      </div>
+
+      <!-- SAVE TAB -->
+      <div id="save-tab" class="tab">
+        <h3>💾 Save / Load</h3>
+        <div id="saveSlots"></div>
+      </div>
+    </div>
+
+    <div id="main">
+      <canvas id="gc"></canvas>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════
+// DATA
+// ══════════════════════════════════════════
+const RANKS = ["Bronze","Iron","Silver","Gold","Diamond","Adamantite","Dragon Glass","Mythical","Celestial"];
+
+const CROPS = {
+  Wheat:  {seedKey:'WheatSeeds',  cost:10, seedCost:8,  growTime:5, reward:20, sellVal:15, xp:15, color:'#eecc44', emoji:'🌾'},
+  Tomato: {seedKey:'TomatoSeeds', cost:25, seedCost:20, growTime:8, reward:45, sellVal:35, xp:30, color:'#ff4444', emoji:'🍅'},
+  Carrot: {seedKey:'CarrotSeeds', cost:15, seedCost:12, growTime:6, reward:32, sellVal:25, xp:20, color:'#ff8800', emoji:'🥕'},
+  Potato: {seedKey:'PotatoSeeds', cost:20, seedCost:16, growTime:7, reward:40, sellVal:30, xp:25, color:'#cc8844', emoji:'🥔'},
+};
+
+const SHOP_ITEMS = [
+  {id:'WheatSeeds',  name:'Wheat Seeds',       emoji:'🌾', price:8,   desc:'Grows quickly. Good starter crop.',   type:'seed',   cropName:'Wheat'},
+  {id:'TomatoSeeds', name:'Tomato Seeds',       emoji:'🍅', price:20,  desc:'High value. Takes longer to grow.',   type:'seed',   cropName:'Tomato'},
+  {id:'CarrotSeeds', name:'Carrot Seeds',       emoji:'🥕', price:12,  desc:'Medium growth. Good XP.',             type:'seed',   cropName:'Carrot'},
+  {id:'PotatoSeeds', name:'Potato Seeds',       emoji:'🥔', price:16,  desc:'Solid reward when harvested.',        type:'seed',   cropName:'Potato'},
+  {id:'StaminaPot',  name:'Stamina Potion',     emoji:'⚡', price:80,  desc:'Instantly restores full stamina.',    type:'item'},
+  {id:'SmallStaPot', name:'Small Stamina Pot',  emoji:'🍶', price:30,  desc:'Restores 30% stamina.',               type:'item'},
+  {id:'Fertilizer',  name:'Fertilizer',         emoji:'🌿', price:50,  desc:'+40% growth boost to all crops.',     type:'item'},
+  {id:'SuperFert',   name:'Super Fertilizer',   emoji:'💊', price:120, desc:'+80% growth. Instant near-harvest!',  type:'item'},
+  {id:'WaterCan',    name:'Watering Can',        emoji:'🪣', price:40,  desc:'Waters all crops. Free stamina.',     type:'item'},
+  {id:'LuckCharm',   name:'Lucky Charm',         emoji:'🍀', price:200, desc:'+50% gold from next 5 harvests.',    type:'item'},
+];
+
+const SAVE_KEY = 'FSML_v2';
+
+// ══════════════════════════════════════════
+// GAME STATE
+// ══════════════════════════════════════════
+let G = {
+  name:'Farmer', level:1, exp:0, gold:200,
+  stamina:100, rank:'Bronze', day:1, weather:'Sunny',
+  luckCharm:0,
+};
+let plots = Array(9).fill(null).map(()=>({crop:null,growth:0,watered:false}));
+let inventory = {
+  WheatSeeds:5, TomatoSeeds:0, CarrotSeeds:0, PotatoSeeds:0,
+  Wheat:0, Tomato:0, Carrot:0, Potato:0,
+  StaminaPot:0, SmallStaPot:0, Fertilizer:0, SuperFert:0, WaterCan:0, LuckCharm:0,
+};
+let gameInterval = null;
+
+// ══════════════════════════════════════════
+// START
+// ══════════════════════════════════════════
+function beginGame(){
+  const n = document.getElementById('nameInput').value.trim();
+  if(!n){toast('Please enter your name! 🌱','#ff4');return;}
+  G.name = n;
+  document.getElementById('nameScreen').style.display = 'none';
+  document.getElementById('game').style.display = 'flex';
+  resizeCanvas();
+  renderShop();
+  renderSaveSlots();
+  updateUI();
+  draw();
+  if(gameInterval) clearInterval(gameInterval);
+  gameInterval = setInterval(gameTick, 700);
+  toast('Welcome '+G.name+'! You have 5 Wheat Seeds to start! 🌾','#0f0');
+}
+
+// ══════════════════════════════════════════
+// CANVAS
+// ══════════════════════════════════════════
+const canvas = document.getElementById('gc');
+const ctx = canvas.getContext('2d');
+function resizeCanvas(){
+  const main = document.getElementById('main');
+  const w = main.clientWidth - 8;
+  const h = main.clientHeight - 8;
+  const size = Math.min(w, h * 1.4, 580);
+  canvas.width = Math.floor(size);
+  canvas.height = Math.floor(size * 0.68);
+  draw();
+}
+window.addEventListener('resize', resizeCanvas);
+
+// ══════════════════════════════════════════
+// DRAW
+// ══════════════════════════════════════════
+function draw(){
+  const W=canvas.width, H=canvas.height;
+  if(!W||!H) return;
+  ctx.clearRect(0,0,W,H);
+
+  // Sky
+  const wx=G.weather;
+  const skyColor=wx==='Rain'?'#1a2a3a':wx==='Cloudy'?'#1a2a1a':wx==='Windy'?'#1a3a2a':'#0f2a0f';
+  ctx.fillStyle=skyColor; ctx.fillRect(0,0,W,H*0.18);
+
+  // Weather element
+  if(wx==='Sunny'){
+    ctx.fillStyle='#ffdd00';
+    ctx.beginPath();ctx.arc(W-35,28,18,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='#ffee66';
+    for(let i=0;i<8;i++){
+      const a=i*Math.PI/4;
+      ctx.fillRect(W-35+Math.cos(a)*22,28+Math.sin(a)*22-1,8,2);
+    }
+  } else if(wx==='Rain'){
+    ctx.fillStyle='#446688'; ctx.fillRect(W/2-50,4,100,20);
+    ctx.fillStyle='#88aacc';
+    for(let i=0;i<10;i++) ctx.fillRect(W/2-45+i*10,26,2,7);
+  } else if(wx==='Cloudy'){
+    ctx.fillStyle='#335533'; ctx.fillRect(W/2-45,6,90,18);
+    ctx.fillStyle='#446644'; ctx.fillRect(W/2-60,12,130,14);
+  } else if(wx==='Windy'){
+    ctx.strokeStyle='#44aa66'; ctx.lineWidth=2;
+    for(let i=0;i<3;i++){ctx.beginPath();ctx.moveTo(W/2-50,8+i*8);ctx.lineTo(W/2+50,8+i*8);ctx.stroke();}
+  }
+
+  // Ground
+  ctx.fillStyle='#0a2a0a'; ctx.fillRect(0,H*0.18,W,H*0.82);
+
+  // Day/weather info bar
+  ctx.fillStyle='#000a'; ctx.fillRect(0,0,W,16);
+  ctx.fillStyle='#0f0'; ctx.font=`bold ${Math.max(9,Math.floor(W/55))}px 'Courier New'`;
+  ctx.textAlign='center';
+  ctx.fillText(`Day ${Math.floor(G.day)} | ${G.weather} | LV.${G.level} ${G.rank}`,W/2,12);
+
+  // Plot grid
+  const COLS=3, ROWS=3;
+  const pw=Math.floor(W*0.26), ph=Math.floor(H*0.24);
+  const gapX=Math.floor((W-COLS*pw)/(COLS+1));
+  const gapY=Math.floor((H*0.72-ROWS*ph)/(ROWS+1));
+  const startY=Math.floor(H*0.2);
+
+  for(let i=0;i<9;i++){
+    const col=i%3, row=Math.floor(i/3);
+    const x=gapX+col*(pw+gapX);
+    const y=startY+gapY+row*(ph+gapY);
+    const p=plots[i];
+
+    // Soil
+    ctx.fillStyle=p.watered?'#2a1008':'#4a2010';
+    ctx.fillRect(x,y,pw,ph);
+
+    // Border
+    ctx.strokeStyle=p.watered?'#4488ff':'#2a5a2a';
+    ctx.lineWidth=1; ctx.strokeRect(x,y,pw,ph);
+
+    if(p.crop){
+      const cr=CROPS[p.crop];
+      const g=p.growth/100;
+      // Stem
+      ctx.fillStyle='#228822';
+      const stemH=Math.floor(ph*g*0.7);
+      ctx.fillRect(x+pw/2-2,y+ph-stemH,4,stemH);
+      // Crop head
+      if(g>0.2){
+        ctx.fillStyle=g>=1?cr.color:g>0.6?cr.color+'cc':'#88aa44';
+        const radius=Math.floor(pw*0.18*Math.min(g*1.5,1));
+        ctx.beginPath();
+        ctx.arc(x+pw/2,y+ph-stemH-radius,radius,0,Math.PI*2);
+        ctx.fill();
+      }
+      // Growth bar bg
+      ctx.fillStyle='#001100'; ctx.fillRect(x+2,y+ph-9,pw-4,7);
+      // Growth bar fill
+      ctx.fillStyle=g>=1?'#00ff00':g>0.6?'#88ff00':'#ffaa00';
+      ctx.fillRect(x+2,y+ph-9,Math.floor((pw-4)*g),7);
+      // Labels
+      ctx.font=`bold ${Math.max(8,Math.floor(pw/8))}px 'Courier New'`;
+      ctx.textAlign='center';
+      ctx.fillStyle=g>=1?'#00ff00':'#ccffcc';
+      ctx.fillText(g>=1?'READY':cr.emoji,x+pw/2,y+12);
+      if(g<1){
+        ctx.fillStyle='#8f8'; ctx.font=`${Math.max(7,Math.floor(pw/10))}px 'Courier New'`;
+        ctx.fillText(Math.floor(g*100)+'%',x+pw/2,y+ph-12);
+      }
+    } else {
+      ctx.fillStyle='#1a4a1a';
+      ctx.font=`${Math.max(8,Math.floor(pw/9))}px 'Courier New'`;
+      ctx.textAlign='center';
+      ctx.fillText('EMPTY',x+pw/2,y+ph/2+4);
+    }
+  }
+
+  // Farmer sprite
+  const fx=W*0.88, fy=H*0.82;
+  const sc=Math.max(0.5,W/580);
+  ctx.save(); ctx.translate(fx,fy); ctx.scale(sc,sc);
+  ctx.fillStyle='#885500'; ctx.fillRect(-8,-38,20,8); // hat brim
+  ctx.fillStyle='#663300'; ctx.fillRect(-5,-50,14,14); // hat top
+  ctx.fillStyle='#ffcc88'; ctx.fillRect(-6,-36,16,16); // head
+  ctx.fillStyle='#2255cc'; ctx.fillRect(-8,-20,20,22); // body
+  ctx.fillStyle='#ffcc88'; ctx.fillRect(-14,-18,8,14); // arm L
+  ctx.fillStyle='#ffcc88'; ctx.fillRect(10,-18,8,14);  // arm R
+  ctx.fillStyle='#224488'; ctx.fillRect(-7,2,8,14);    // leg L
+  ctx.fillStyle='#224488'; ctx.fillRect(3,2,8,14);     // leg R
+  // Tool
+  ctx.fillStyle='#886600'; ctx.fillRect(10,-28,3,30);
+  ctx.fillStyle='#aaaaaa'; ctx.fillRect(7,-32,9,6);
+  ctx.restore();
+
+  // Stamina bar at bottom
+  const barY=H-14;
+  ctx.fillStyle='#001100'; ctx.fillRect(4,barY,W-8,10);
+  const staPct=G.stamina/100;
+  ctx.fillStyle=staPct>0.6?'#00ff44':staPct>0.3?'#ffaa00':'#ff2200';
+  ctx.fillRect(4,barY,Math.floor((W-8)*staPct),10);
+  ctx.strokeStyle='#0f0'; ctx.lineWidth=1; ctx.strokeRect(4,barY,W-8,10);
+  ctx.fillStyle='#fff'; ctx.font=`bold 9px 'Courier New'`; ctx.textAlign='center';
+  ctx.fillText('⚡ STAMINA '+G.stamina+'%',W/2,barY+8);
+}
+
+// ══════════════════════════════════════════
+// FARMING ACTIONS
+// ══════════════════════════════════════════
+function plantCrop(cropName){
+  const crop=CROPS[cropName];
+  if(!crop){return;}
+  if(G.stamina<10){toast('Too tired! Rest at the Inn 🏠','#f84');return;}
+  const seedKey=crop.seedKey;
+  if((inventory[seedKey]||0)<=0){
+    toast('No '+cropName+' seeds! Buy from Shop 🛒','#f84');return;
+  }
+  const empty=plots.findIndex(p=>!p.crop);
+  if(empty===-1){toast('No empty plots! Harvest first ✂️','#f84');return;}
+  inventory[seedKey]--;
+  G.stamina=Math.max(0,G.stamina-10);
+  plots[empty]={crop:cropName,growth:0,watered:false};
+  sfx('plant');
+  draw(); updateUI();
+  toast(crop.emoji+' Planted '+cropName+'! ('+inventory[seedKey]+' seeds left)','#0f0');
+}
+
+function waterAll(){
+  if(G.stamina<5){toast('Too tired to water! Rest first 🏠','#f84');return;}
+  let count=0;
+  // Check for free watering can
+  if((inventory.WaterCan||0)>0){
+    plots.forEach(p=>{if(p.crop&&!p.watered){p.watered=true;count++;}});
+    inventory.WaterCan--;
+    if(count>0){toast('🪣 Used Watering Can! '+count+' plots watered FREE!','#44f');}
+    else toast('All crops already watered!','#ff0');
+  } else {
+    plots.forEach(p=>{if(p.crop&&!p.watered){p.watered=true;count++;}});
+    if(count>0){G.stamina=Math.max(0,G.stamina-5);sfx('water');toast('💧 Watered '+count+' plots!','#44f');}
+    else toast('All crops already watered!','#ff0');
+  }
+  draw(); updateUI();
+}
+
+function harvestAll(){
+  let count=0, totalGold=0, totalXp=0;
+  const mult=G.luckCharm>0?1.5:1;
+  plots.forEach((p,i)=>{
+    if(p.crop&&p.growth>=100){
+      const crop=CROPS[p.crop];
+      inventory[p.crop]=(inventory[p.crop]||0)+4;
+      totalXp+=crop.xp;
+      plots[i]={crop:null,growth:0,watered:false};
+      count++;
+    }
+  });
+  if(count>0){
+    G.exp+=totalXp;
+    if(G.luckCharm>0) G.luckCharm--;
+    sfx('harvest');
+    checkLevelUp();
+    updateUI(); draw();
+    toast('✂️ Harvested '+count+' plots! +'+totalXp+' XP','#0f0');
+  } else {
+    toast('No crops ready yet! Wait for them to grow 🌱','#ff0');
+  }
+}
+
+function sellAll(){
+  let total=0, sold=[];
+  for(let cropName in CROPS){
+    const qty=inventory[cropName]||0;
+    if(qty>0){
+      const val=Math.floor(CROPS[cropName].sellVal*qty*(G.luckCharm>0?1.5:1));
+      G.gold+=val; total+=val;
+      sold.push(cropName+' ×'+qty+' (+'+val+'g)');
+      inventory[cropName]=0;
+    }
+  }
+  if(total>0){
+    sfx('sell');
+    updateUI(); draw();
+    toast('💰 Sold! +'+total+'g','#ffcc00');
+  } else {
+    toast('No crops to sell! Harvest first ✂️','#ff0');
+  }
+}
+
+function checkLevelUp(){
+  while(G.exp>=G.level*60){
+    G.exp-=G.level*60;
+    G.level++;
+    const idx=Math.min(Math.floor((G.level-1)/10),RANKS.length-1);
+    G.rank=RANKS[idx];
+    sfx('levelup');
+    toast('🎉 LEVEL UP! Lv.'+G.level+' — '+G.rank+'!','#ffcc00');
+  }
+}
+
+// ══════════════════════════════════════════
+// SHOP
+// ══════════════════════════════════════════
+function renderShop(){
+  const c=document.getElementById('shopItems');
+  if(!c) return;
+  c.innerHTML='';
+  SHOP_ITEMS.forEach(item=>{
+    const owned=inventory[item.id]||0;
+    const canAfford=G.gold>=item.price;
+    const div=document.createElement('div');
+    div.className='shop-item';
+    div.innerHTML=`
+      <div class="shop-item-name">${item.emoji} ${item.name}</div>
+      <div class="shop-item-desc">${item.desc}</div>
+      <div class="shop-item-row">
+        <span class="price-tag">💰 ${item.price}g</span>
+        <span style="font-size:10px;color:#6a8a6a">Owned: ${owned}</span>
+        <button class="btn btn-sm btn-gold" ${canAfford?'':'disabled'} onclick="buyItem('${item.id}')">${canAfford?'BUY':'💸'}</button>
+      </div>`;
+    c.appendChild(div);
+  });
+}
+
+function buyItem(id){
+  const item=SHOP_ITEMS.find(i=>i.id===id);
+  if(!item){return;}
+  if(G.gold<item.price){toast('Not enough gold! 💸','#f84');return;}
+  G.gold-=item.price;
+  sfx('buy');
+
+  if(item.type==='seed'){
+    inventory[id]=(inventory[id]||0)+5;
+    toast(item.emoji+' Bought 5x '+item.name+'!','#0f0');
+  } else {
+    // Use immediately or store
+    if(id==='StaminaPot'){G.stamina=100;toast('⚡ Full stamina restored!','#0f0');}
+    else if(id==='SmallStaPot'){G.stamina=Math.min(100,G.stamina+30);toast('🍶 +30% Stamina!','#0f0');}
+    else if(id==='Fertilizer'){
+      let n=0;plots.forEach(p=>{if(p.crop){p.growth=Math.min(100,p.growth+40);n++;}});
+      toast('🌿 Fertilized '+n+' crops! +40% growth!','#0f0');
+    }
+    else if(id==='SuperFert'){
+      let n=0;plots.forEach(p=>{if(p.crop){p.growth=Math.min(100,p.growth+80);n++;}});
+      toast('💊 Super Fertilized '+n+' crops! +80%!','#0f0');
+    }
+    else if(id==='WaterCan'){inventory.WaterCan=(inventory.WaterCan||0)+1;toast('🪣 Watering Can added to bag!','#0f0');}
+    else if(id==='LuckCharm'){G.luckCharm=5;toast('🍀 Lucky Charm! +50% gold for 5 harvests!','#ffcc00');}
+  }
+  updateUI(); draw(); renderShop();
+  saveAuto();
+}
+
+// ══════════════════════════════════════════
+// INN
+// ══════════════════════════════════════════
+function restAtInn(){
+  if(G.gold<500){toast('Need 500g to rest! 💸','#f84');return;}
+  G.gold-=500;
+  G.stamina=100;
+  G.day=Math.floor(G.day)+1;
+  plots.forEach(p=>{if(p.crop)p.watered=false;});
+  sfx('rest');
+  updateUI(); draw(); renderShop();
+  toast('😴 Well rested! 🌅 Day '+G.day+' begins!','#8ff');
+  saveAuto();
+}
+
+// ══════════════════════════════════════════
+// UI
+// ══════════════════════════════════════════
+function updateUI(){
+  const xpNeed=G.level*60;
+  const xpPct=Math.min(100,(G.exp/xpNeed)*100);
+  document.getElementById('pinfo').innerHTML=
+    `<b>👤 ${G.name}</b><br>`+
+    `⭐ Lv.${G.level} <span style="color:#ffcc00">${G.rank}</span><br>`+
+    `💰 <span style="color:#ffcc00">${G.gold}g</span><br>`+
+    `⚡ Stamina: <span style="color:${G.stamina>60?'#0f0':G.stamina>30?'#fa0':'#f44'}">${G.stamina}%</span>`+
+    (G.luckCharm>0?`<br>🍀 Lucky x${G.luckCharm}`:'')+
+    `<div class="xp-bar-bg"><div class="xp-bar-fill" style="width:${xpPct}%"></div></div>`+
+    `<div style="font-size:9px;color:#484;margin-top:1px">XP: ${G.exp}/${xpNeed}</div>`;
+
+  document.getElementById('sDay').textContent=Math.floor(G.day);
+  document.getElementById('sWx').textContent=G.weather;
+
+  // Inventory list
+  const inv=document.getElementById('invList');
+  if(inv){
+    let html='';
+    const seedItems=['WheatSeeds','TomatoSeeds','CarrotSeeds','PotatoSeeds'];
+    const cropItems=['Wheat','Tomato','Carrot','Potato'];
+    const otherItems=['WaterCan'];
+
+    let hasSeed=false;
+    seedItems.forEach(k=>{
+      if((inventory[k]||0)>0){
+        hasSeed=true;
+        html+=`<div class="inv-item">${k.replace('Seeds','')} 🌱 Seeds <span class="inv-qty">×${inventory[k]}</span></div>`;
+      }
+    });
+    if(!hasSeed) html+='<div style="color:#484;font-size:10px;margin-bottom:4px">No seeds — buy from Shop!</div>';
+
+    let hasCrop=false;
+    cropItems.forEach(k=>{
+      if((inventory[k]||0)>0){
+        hasCrop=true;
+        const crop=CROPS[k];
+        html+=`<div class="inv-item">${crop.emoji} ${k} <span class="inv-qty">×${inventory[k]}</span> <span style="color:#ffcc00;font-size:10px">(${inventory[k]*crop.sellVal}g)</span></div>`;
+      }
+    });
+    if(!hasCrop) html+='<div style="color:#484;font-size:10px;margin-bottom:4px">No crops — harvest to get some!</div>';
+
+    otherItems.forEach(k=>{
+      if((inventory[k]||0)>0){
+        html+=`<div class="inv-item">🪣 Watering Can <span class="inv-qty">×${inventory[k]}</span></div>`;
+      }
+    });
+
+    inv.innerHTML=html||'<div style="color:#484;font-size:11px">Empty bag!</div>';
+  }
+}
+
+function showTab(tab){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  const el=document.getElementById(tab+'-tab');
+  if(el) el.classList.add('active');
+  if(tab==='save') renderSaveSlots();
+  if(tab==='inv') updateUI();
+  if(tab==='shop') renderShop();
+}
+
+// ══════════════════════════════════════════
+// SAVE / LOAD
+// ══════════════════════════════════════════
+function saveGame(slot){
+  const data={G,plots,inventory};
+  localStorage.setItem(SAVE_KEY+'_slot'+slot,JSON.stringify(data));
+  toast('💾 Saved to Slot '+slot,'#0f0');
+  renderSaveSlots();
+}
+function loadGame(slot){
+  const raw=localStorage.getItem(SAVE_KEY+'_slot'+slot);
+  if(!raw){toast('No save in Slot '+slot,'#f84');return;}
+  try{
+    const d=JSON.parse(raw);
+    Object.assign(G,d.G);
+    plots=d.plots||plots;
+    inventory=Object.assign({WheatSeeds:0,TomatoSeeds:0,CarrotSeeds:0,PotatoSeeds:0,Wheat:0,Tomato:0,Carrot:0,Potato:0,StaminaPot:0,SmallStaPot:0,Fertilizer:0,SuperFert:0,WaterCan:0,LuckCharm:0},d.inventory);
+    updateUI(); draw(); renderShop();
+    toast('📂 Loaded Slot '+slot+'!','#0f0');
+  }catch(e){toast('Load failed!','#f44');}
+}
+function deleteSave(slot){
+  if(!confirm('Delete Slot '+slot+'?')) return;
+  localStorage.removeItem(SAVE_KEY+'_slot'+slot);
+  renderSaveSlots();
+  toast('🗑️ Slot '+slot+' deleted','#f84');
+}
+function saveAuto(){
+  try{localStorage.setItem(SAVE_KEY+'_auto',JSON.stringify({G,plots,inventory}));}catch(e){}
+}
+function renderSaveSlots(){
+  const c=document.getElementById('saveSlots');if(!c)return;
+  // Auto-save info
+  let html='<div style="font-size:10px;color:#484;margin-bottom:6px">Auto-save runs every 30 seconds.</div>';
+  for(let i=1;i<=8;i++){
+    const raw=localStorage.getItem(SAVE_KEY+'_slot'+i);
+    let info='Empty',timeStr='';
+    if(raw){try{const d=JSON.parse(raw);info='Lv.'+d.G.level+' Day'+Math.floor(d.G.day)+' '+d.G.gold+'g';}catch(e){}}
+    html+=`<div class="slot">
+      <div class="slot-header"><b>Slot ${i}</b> <span style="color:${raw?'#0f0':'#484'}">${raw?'✅ '+info:'— Empty'}</span></div>
+      <button class="btn btn-sm btn-gold" onclick="saveGame(${i})">💾 Save</button>
+      <button class="btn btn-sm btn-blue" onclick="loadGame(${i})" ${raw?'':'disabled'}>📂 Load</button>
+      <button class="btn btn-sm btn-red" onclick="deleteSave(${i})" ${raw?'':'disabled'}>🗑️ Del</button>
+    </div>`;
+  }
+  c.innerHTML=html;
+}
+
+// ══════════════════════════════════════════
+// SOUND
+// ══════════════════════════════════════════
+let AC=null;
+function getAC(){if(!AC)AC=new(window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();return AC;}
+function sfx(type){
+  try{
+    const a=getAC(),o=a.createOscillator(),g=a.createGain();
+    o.connect(g);g.connect(a.destination);
+    const map={plant:280,water:600,harvest:880,sell:1000,buy:750,rest:440,levelup:1200};
+    o.frequency.value=map[type]||440;
+    o.type=type==='levelup'?'square':'sine';
+    g.gain.setValueAtTime(.2,a.currentTime);
+    g.gain.linearRampToValueAtTime(0,a.currentTime+.25);
+    o.start();o.stop(a.currentTime+.28);
+    if(type==='levelup'){
+      [880,1100,1320].forEach((f,i)=>{
+        const o2=a.createOscillator(),g2=a.createGain();
+        o2.connect(g2);g2.connect(a.destination);
+        o2.frequency.value=f;o2.type='square';
+        g2.gain.setValueAtTime(.15,a.currentTime+i*.1);
+        g2.gain.linearRampToValueAtTime(0,a.currentTime+i*.1+.2);
+        o2.start(a.currentTime+i*.1);o2.stop(a.currentTime+i*.1+.22);
+      });
+    }
+  }catch(e){}
+}
+
+// ══════════════════════════════════════════
+// TOAST NOTIFICATION
+// ══════════════════════════════════════════
+let toastTimer=null;
+function toast(msg,color='#0f0'){
+  const el=document.getElementById('toast');
+  el.textContent=msg;el.style.borderColor=color;el.style.color=color;
+  el.style.opacity='1';
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>el.style.opacity='0',2800);
+}
+
+// ══════════════════════════════════════════
+// GAME LOOP
+// ══════════════════════════════════════════
+function gameTick(){
+  G.day+=0.05;
+  if(Math.random()<0.05) G.weather=['Sunny','Rain','Cloudy','Windy'][Math.floor(Math.random()*4)];
+  plots.forEach(p=>{if(p.crop) p.growth=Math.min(100,p.growth+(p.watered?5:1.5));});
+  // Check if any crop just became ready
+  const ready=plots.filter(p=>p.crop&&p.growth>=100).length;
+  updateUI(); draw();
+  // Auto-save every 30s
+  if(Math.floor(G.day*20)%10===0) saveAuto();
+}
+
+// ══════════════════════════════════════════
+// LOAD AUTO-SAVE CHECK
+// ══════════════════════════════════════════
+window.addEventListener('load',()=>{
+  // Check for auto-save
+  const raw=localStorage.getItem(SAVE_KEY+'_auto');
+  if(raw){
+    try{
+      const d=JSON.parse(raw);
+      const nameInput=document.getElementById('nameInput');
+      if(d.G&&d.G.name) nameInput.value=d.G.name;
+      // Add a "Continue" button hint
+      const hint=document.createElement('p');
+      hint.style.cssText='color:#ffcc00;font-size:11px;text-align:center';
+      hint.textContent='💾 Auto-save found! Enter same name to start fresh or click Continue.';
+      nameInput.parentNode.insertBefore(hint,nameInput.nextSibling.nextSibling);
+      // Add continue button
+      const contBtn=document.createElement('button');
+      contBtn.className='btn btn-green';
+      contBtn.style.cssText='width:260px;font-size:13px;padding:10px;text-align:center;border-color:#0f0;color:#0f0';
+      contBtn.textContent='📂 CONTINUE LAST GAME';
+      contBtn.onclick=()=>{
+        Object.assign(G,d.G);
+        plots=d.plots||plots;
+        inventory=Object.assign({WheatSeeds:0,TomatoSeeds:0,CarrotSeeds:0,PotatoSeeds:0,Wheat:0,Tomato:0,Carrot:0,Potato:0,StaminaPot:0,SmallStaPot:0,Fertilizer:0,SuperFert:0,WaterCan:0,LuckCharm:0},d.inventory);
+        document.getElementById('nameScreen').style.display='none';
+        document.getElementById('game').style.display='flex';
+        resizeCanvas();renderShop();renderSaveSlots();updateUI();draw();
+        if(gameInterval)clearInterval(gameInterval);
+        gameInterval=setInterval(gameTick,700);
+        toast('📂 Continued! Welcome back '+G.name+'!','#0f0');
+      };
+      nameInput.parentNode.insertBefore(contBtn,hint.nextSibling);
+    }catch(e){}
+  }
+  document.addEventListener('click',()=>{try{getAC();}catch(e){}},{once:true});
+});
+
+// Enter key on name input
+document.getElementById('nameInput').addEventListener('keydown',e=>{
+  if(e.key==='Enter') beginGame();
+});
+</script>
+</body>
+</html>
