@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gielinor Tales — Text RPG</title>
+<style>
+/* === RESET & BASE === */
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:#0e0b04;color:#e8d89a;font-family:Georgia,'Times New Roman',serif;font-size:15px;line-height:1.6}
+
+/* === LAYOUT === */
+#shell{display:grid;grid-template-rows:auto 1fr auto;height:100vh;max-width:980px;margin:0 auto;border-left:2px solid #5a4a18;border-right:2px solid #5a4a18}
+#topbar{background:#08060100;border-bottom:2px solid #5a4a18;padding:8px 14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;background:#090702}
+#topbar h1{font-size:20px;color:#f0c040;letter-spacing:2px;font-style:italic;text-shadow:0 0 10px #a07010}
+.bars{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.bar-group{display:flex;align-items:center;gap:6px;font-size:12px}
+.bar-label{color:#a08050;min-width:28px}
+.bar-track{width:90px;height:11px;background:#1a0000;border:1px solid #4a1010;border-radius:2px;overflow:hidden}
+.bar-fill{height:100%;transition:width .35s;border-radius:1px}
+#hp-fill{background:#c03030}
+#pray-fill{background:#4488cc}
+#run-fill{background:#c08830}
+.coin-disp{color:#f0c040;font-size:13px;font-weight:bold}
+
+/* === CENTER AREA === */
+#center{display:grid;grid-template-columns:1fr 210px;overflow:hidden}
+
+/* LOG PANEL */
+#log-wrap{display:flex;flex-direction:column;overflow:hidden;border-right:2px solid #5a4a18}
+#location-banner{padding:10px 14px;background:#0a0800;border-bottom:1px solid #3a2a08;display:flex;align-items:center;gap:10px}
+#loc-icon{font-size:30px;line-height:1}
+#loc-info .loc-name{font-size:16px;color:#f0c040;font-style:italic}
+#loc-info .loc-desc{font-size:12px;color:#a08050}
+#log{flex:1;overflow-y:auto;padding:10px 14px;display:flex;flex-direction:column;gap:6px;scroll-behavior:smooth}
+#log::-webkit-scrollbar{width:6px}
+#log::-webkit-scrollbar-track{background:#0a0800}
+#log::-webkit-scrollbar-thumb{background:#3a2a08;border-radius:3px}
+.entry{padding:5px 10px;border-left:3px solid #3a2a08;font-size:13.5px;animation:slideIn .25s ease}
+.entry.combat{border-left-color:#c03030;background:rgba(80,0,0,.12)}
+.entry.loot{border-left-color:#f0c040;background:rgba(80,60,0,.15);color:#f5d870}
+.entry.system{border-left-color:#40a040;background:rgba(0,40,0,.15);color:#80c880}
+.entry.info{border-left-color:#4488cc;background:rgba(0,20,60,.15);color:#88aadd}
+.entry.death{border-left-color:#c03030;background:rgba(100,0,0,.3);color:#ff8080;font-style:italic}
+.entry.narrate{border-left-color:#8060a0;background:rgba(40,0,60,.15);color:#c0a0e0;font-style:italic}
+.entry em{color:#f0d060;font-style:normal;font-weight:bold}
+@keyframes slideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
+
+/* ENEMY CARD (inline in log) */
+.enemy-card{margin:4px 0;padding:8px 12px;background:#1a0a02;border:1px solid #5a1a1a;border-radius:3px}
+.enemy-name{color:#f08080;font-size:15px;font-style:italic}
+.enemy-art{font-size:40px;text-align:center;margin:4px 0;line-height:1}
+.enemy-hpbar{height:8px;background:#400;border-radius:2px;border:1px solid #700;overflow:hidden;margin-top:4px}
+.enemy-hpfill{height:100%;background:#e03030;transition:width .3s}
+
+/* === SIDEBAR === */
+#sidebar{display:flex;flex-direction:column;gap:0;overflow-y:auto;background:#0c0901}
+#sidebar::-webkit-scrollbar{width:4px}
+#sidebar::-webkit-scrollbar-thumb{background:#3a2a08}
+.sbox{border-bottom:1px solid #3a2a08;padding:8px 10px}
+.sbox-title{font-size:12px;color:#f0c040;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;font-style:italic}
+.stat-row{display:flex;justify-content:space-between;font-size:12px;padding:1px 0;color:#c8b870}
+.stat-val{color:#f0d060;font-weight:bold}
+
+/* SKILLS */
+.skill-item{display:flex;align-items:center;gap:6px;padding:2px 0;font-size:12px}
+.skill-icon{font-size:14px;width:18px;text-align:center}
+.skill-name{flex:1;color:#c8b870}
+.skill-lv{color:#f0d060;font-weight:bold;min-width:18px;text-align:right}
+.skill-xpbar{width:40px;height:4px;background:#001030;border-radius:2px;overflow:hidden}
+.skill-xpfill{height:100%;background:#4488cc;border-radius:2px;transition:width .4s}
+
+/* INVENTORY */
+.inv-grid{display:grid;grid-template-columns:1fr 1fr;gap:3px;margin-top:4px}
+.inv-slot{background:#0a0701;border:1px solid #3a2a08;border-radius:2px;padding:4px 5px;font-size:11px;color:#c8b870;min-height:28px;cursor:pointer;transition:all .15s;text-align:center}
+.inv-slot:hover{background:#1a1205;border-color:#6a5a20;color:#f0d060}
+.inv-slot.equipped{border-color:#8a7a30;color:#f0c040;background:#1a1500}
+.inv-empty{color:#4a3a18;font-size:10px}
+
+/* === ACTION BAR === */
+#actionbar{border-top:2px solid #5a4a18;background:#090702;padding:8px 12px;display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.btn{background:#1a1205;border:1px solid #5a4a18;color:#e8d89a;font-family:Georgia,serif;font-size:13px;padding:6px 14px;cursor:pointer;border-radius:2px;transition:all .15s;line-height:1.3}
+.btn:hover:not(:disabled){background:#2a2008;border-color:#f0c040;color:#f0d060}
+.btn:disabled{opacity:.35;cursor:default}
+.btn.red{border-color:#8a3030;color:#f09090}
+.btn.red:hover:not(:disabled){background:rgba(80,0,0,.3);border-color:#f05050;color:#ffb0b0}
+.btn.green{border-color:#306a30;color:#90d090}
+.btn.green:hover:not(:disabled){background:rgba(0,60,0,.3);border-color:#50c050;color:#b0ffb0}
+.btn.blue{border-color:#304880;color:#90a8e0}
+.btn.blue:hover:not(:disabled){background:rgba(0,20,80,.3);border-color:#5080d0;color:#c0d0ff}
+#scene-btns{display:flex;gap:6px;flex-wrap:wrap}
+
+/* MODAL */
+#modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:100;align-items:center;justify-content:center}
+#modal-overlay.open{display:flex}
+#modal{background:#120e04;border:2px solid #6a5a18;border-radius:4px;padding:20px;max-width:360px;width:90%;max-height:80vh;overflow-y:auto}
+#modal h2{color:#f0c040;font-size:18px;margin-bottom:12px;font-style:italic}
+#modal p{font-size:14px;color:#c8b870;margin-bottom:8px}
+#modal .modal-btns{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+
+/* SHOP */
+.shop-item{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid #2a1e08;font-size:13px}
+.shop-name{color:#e8d89a}
+.shop-price{color:#f0c040;min-width:60px;text-align:right}
+.shop-buy{font-size:11px;padding:2px 8px;background:#0a1a08;border:1px solid #2a6a20;color:#70c060;cursor:pointer;border-radius:2px;font-family:Georgia,serif;margin-left:8px}
+.shop-buy:hover{background:#102808;border-color:#50c040;color:#90e080}
+
+/* === DEATH SCREEN === */
+#death-screen{display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:200;align-items:center;justify-content:center;flex-direction:column;gap:16px}
+#death-screen.open{display:flex}
+#death-screen h2{color:#c03030;font-size:32px;font-style:italic;text-shadow:0 0 20px #c03030}
+#death-screen p{color:#a08050;font-size:15px;text-align:center;max-width:320px}
+</style>
+</head>
+<body>
+
+<div id="shell">
+  <!-- TOP BAR -->
+  <div id="topbar">
+    <h1>⚔ Gielinor Tales</h1>
+    <div class="bars">
+      <div class="bar-group">
+        <span class="bar-label">❤️ HP</span>
+        <div class="bar-track"><div class="bar-fill" id="hp-fill" style="width:100%"></div></div>
+        <span id="hp-text" style="font-size:11px;color:#a08050">10/10</span>
+      </div>
+      <div class="bar-group">
+        <span class="bar-label">🙏 Pray</span>
+        <div class="bar-track"><div class="bar-fill" id="pray-fill" style="width:100%"></div></div>
+      </div>
+      <div class="bar-group">
+        <span class="bar-label">🏃 Run</span>
+        <div class="bar-track"><div class="bar-fill" id="run-fill" style="width:100%"></div></div>
+      </div>
+      <div class="coin-disp">🪙 <span id="coins-disp">25</span></div>
+    </div>
+  </div>
+
+  <!-- MAIN CENTER -->
+  <div id="center">
+    <!-- LOG -->
+    <div id="log-wrap">
+      <div id="location-banner">
+        <div id="loc-icon">🌿</div>
+        <div id="loc-info">
+          <div class="loc-name" id="loc-name">Lumbridge</div>
+          <div class="loc-desc" id="loc-desc">A peaceful town by the river.</div>
+        </div>
+      </div>
+      <div id="log"></div>
+    </div>
+
+    <!-- SIDEBAR -->
+    <div id="sidebar">
+      <div class="sbox">
+        <div class="sbox-title">Character</div>
+        <div class="stat-row"><span>Name</span><span class="stat-val" id="s-name">Adventurer</span></div>
+        <div class="stat-row"><span>Combat Lv</span><span class="stat-val" id="s-clvl">3</span></div>
+        <div class="stat-row"><span>Total XP</span><span class="stat-val" id="s-xp">0</span></div>
+        <div class="stat-row"><span>Kills</span><span class="stat-val" id="s-kills">0</span></div>
+        <div class="stat-row"><span>Deaths</span><span class="stat-val" id="s-deaths">0</span></div>
+      </div>
+      <div class="sbox">
+        <div class="sbox-title">Skills</div>
+        <div id="skills-list"></div>
+      </div>
+      <div class="sbox">
+        <div class="sbox-title">Equipment</div>
+        <div id="equip-list"></div>
+      </div>
+      <div class="sbox">
+        <div class="sbox-title">Inventory</div>
+        <div class="inv-grid" id="inv-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ACTION BAR -->
+  <div id="actionbar">
+    <div id="scene-btns"></div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div id="modal-overlay">
+  <div id="modal">
+    <h2 id="modal-title">Title</h2>
+    <div id="modal-body"></div>
+    <div class="modal-btns" id="modal-btns"></div>
+  </div>
+</div>
+
+<!-- DEATH SCREEN -->
+<div id="death-screen" id="death-screen">
+  <h2>💀 You have died.</h2>
+  <p id="death-msg">You were slain in combat. Your items were lost.<br>You respawn at Lumbridge...</p>
+  <button class="btn red" onclick="respawn()">Rise Again</button>
+</div>
+
+<script>
+// ============================================================
+// DATA
+// ============================================================
+const LOCATIONS = {
+  lumbridge: {
+    name:'Lumbridge',icon:'🏰',desc:'A peaceful starting town with a castle.',
+    actions:['explore','talk_guide','shop','bank','travel'],
+    encounters:['chicken','goblin'],
+    encounterChance:0.25
+  },
+  barbarian_village: {
+    name:'Barbarian Village',icon:'⚔️',desc:'A rough settlement of fierce warriors.',
+    actions:['explore','fight','travel'],
+    encounters:['barbarian','dark_warrior'],
+    encounterChance:0.45
+  },
+  draynor: {
+    name:'Draynor Village',icon:'🧛',desc:'A gloomy village near the dark swamp.',
+    actions:['explore','fish','shop','travel'],
+    encounters:['zombie','giant_rat'],
+    encounterChance:0.35
+  },
+  al_kharid: {
+    name:"Al Kharid",icon:'🏜️',desc:'A desert trading city east of Lumbridge.',
+    actions:['explore','shop','mine','travel'],
+    encounters:['al_kharid_warrior','scorpion'],
+    encounterChance:0.4
+  },
+  wilderness: {
+    name:'Wilderness Edge',icon:'💀',desc:'A cursed wasteland. Turn back if you value your life.',
+    actions:['explore','fight','travel'],
+    encounters:['skeleton','lesser_demon'],
+    encounterChance:0.7
+  }
+};
+
+const TRAVEL_MAP = {
+  lumbridge:['barbarian_village','draynor','al_kharid'],
+  barbarian_village:['lumbridge','wilderness'],
+  draynor:['lumbridge','al_kharid'],
+  al_kharid:['lumbridge','draynor','wilderness'],
+  wilderness:['barbarian_village','al_kharid']
+};
+
+const ENEMIES = {
+  chicken:{name:'Chicken',icon:'🐔',hp:3,maxhp:3,atk:1,def:0,xp:3,loot:['raw_chicken','feather','feather'],coins:[0,2]},
+  goblin:{name:'Goblin',icon:'👺',hp:5,maxhp:5,atk:2,def:0,xp:8,loot:['coins','goblin_mail','nothing','nothing'],coins:[1,5]},
+  giant_rat:{name:'Giant Rat',icon:'🐀',hp:8,maxhp:8,atk:3,def:1,xp:12,loot:['rat_meat','bones','nothing'],coins:[0,3]},
+  zombie:{name:'Zombie',icon:'🧟',hp:12,maxhp:12,atk:4,def:1,xp:20,loot:['bones','rotten_flesh','nothing','nothing'],coins:[2,8]},
+  barbarian:{name:'Barbarian',icon:'🪓',hp:15,maxhp:15,atk:5,def:2,xp:28,loot:['coins','iron_axe','nothing','nothing'],coins:[3,12]},
+  al_kharid_warrior:{name:"Al Kharid Warrior",icon:'🗡️',hp:18,maxhp:18,atk:6,def:3,xp:35,loot:['coins','steel_sword','nothing'],coins:[5,15]},
+  skeleton:{name:'Skeleton',icon:'💀',hp:22,maxhp:22,atk:7,def:2,xp:45,loot:['bones','iron_arrow','iron_arrow','nothing'],coins:[4,18]},
+  dark_warrior:{name:'Dark Warrior',icon:'🧙',hp:20,maxhp:20,atk:8,def:4,xp:50,loot:['dark_key','coins','nothing'],coins:[8,20]},
+  scorpion:{name:'Scorpion',icon:'🦂',hp:25,maxhp:25,atk:9,def:3,xp:60,loot:['nothing','nothing','scorpion_claw'],coins:[0,5]},
+  lesser_demon:{name:'Lesser Demon',icon:'😈',hp:40,maxhp:40,atk:12,def:6,xp:100,loot:['rune_med_helm','nothing','nothing','fire_rune'],coins:[15,40]}
+};
+
+const ITEMS = {
+  nothing:{name:'Nothing',hidden:true},
+  coins:{name:'Coins',icon:'🪙',type:'misc'},
+  feather:{name:'Feather',icon:'🪶',type:'misc',value:1},
+  bones:{name:'Bones',icon:'🦴',type:'misc',value:1,buryXp:4},
+  raw_chicken:{name:'Raw Chicken',icon:'🍗',type:'food'},
+  rat_meat:{name:'Rat Meat',icon:'🥩',type:'food'},
+  rotten_flesh:{name:'Rotten Flesh',icon:'🫀',type:'misc',value:0},
+  goblin_mail:{name:'Goblin Mail',icon:'🥋',type:'armour',bonus:{def:1},value:5},
+  iron_axe:{name:'Iron Axe',icon:'🪓',type:'weapon',bonus:{atk:3},value:30},
+  steel_sword:{name:'Steel Sword',icon:'⚔️',type:'weapon',bonus:{atk:5},value:80},
+  dark_key:{name:'Dark Key',icon:'🗝️',type:'misc',value:50},
+  scorpion_claw:{name:'Scorpion Claw',icon:'🦂',type:'misc',value:25},
+  fire_rune:{name:'Fire Rune',icon:'🔥',type:'rune',value:5},
+  iron_arrow:{name:'Iron Arrow',icon:'🏹',type:'misc',value:2},
+  rune_med_helm:{name:'Rune Med Helm',icon:'⛑️',type:'armour',bonus:{def:10},value:500},
+  // Shop items
+  bronze_sword:{name:'Bronze Sword',icon:'🗡️',type:'weapon',bonus:{atk:2},value:10,shopPrice:15},
+  iron_sword:{name:'Iron Sword',icon:'🗡️',type:'weapon',bonus:{atk:4},value:50,shopPrice:60},
+  leather_body:{name:'Leather Body',icon:'🧥',type:'armour',bonus:{def:2},value:15,shopPrice:20},
+  health_potion:{name:'Health Potion',icon:'🧪',type:'potion',heals:10,value:8,shopPrice:12},
+  bread:{name:'Bread',icon:'🍞',type:'food',heals:5,value:5,shopPrice:7},
+  cooked_chicken:{name:'Cooked Chicken',icon:'🍗',type:'food',heals:4,value:4,shopPrice:5}
+};
+
+const SHOP_LUMBRIDGE = ['bronze_sword','leather_body','health_potion','bread'];
+const SHOP_DRAYNOR  = ['iron_sword','health_potion','bread','cooked_chicken'];
+const SHOP_AL_KHARID = ['iron_sword','leather_body','health_potion','iron_arrow'];
+
+const SKILLS_DEF = [
+  {id:'attack',name:'Attack',icon:'⚔️'},
+  {id:'strength',name:'Strength',icon:'💪'},
+  {id:'defence',name:'Defence',icon:'🛡️'},
+  {id:'hitpoints',name:'Hitpoints',icon:'❤️'},
+  {id:'woodcutting',name:'Woodcutting',icon:'🪵'},
+  {id:'fishing',name:'Fishing',icon:'🐟'},
+  {id:'mining',name:'Mining',icon:'⛏️'},
+  {id:'prayer',name:'Prayer',icon:'🙏'},
+  {id:'magic',name:'Magic',icon:'✨'}
+];
+
+function xpForLevel(lv){return Math.floor(lv*lv*50)}
+function levelFromXp(xp){let lv=1;while(xpForLevel(lv+1)<=xp)lv++;return lv}
+
+// ============================================================
+// STATE
+// ============================================================
+let G = {
+  playerName:'Adventurer',
+  location:'lumbridge',
+  hp:10, maxHp:10,
+  prayer:10, maxPrayer:10,
+  run:100, maxRun:100,
+  coins:25,
+  kills:0, deaths:0,
+  inCombat:false,
+  enemy:null,
+  inventory:[],
+  equipment:{weapon:null,armour:null},
+  skills:{},
+  totalXp:0
+};
+
+function initState(){
+  SKILLS_DEF.forEach(s=>{ G.skills[s.id]={xp:0} });
+  G.skills.hitpoints.xp = xpForLevel(10);
+}
+
+function skillLevel(id){ return levelFromXp(G.skills[id].xp) }
+function addXp(id,amt){
+  const before=skillLevel(id);
+  G.skills[id].xp+=amt;
+  G.totalXp+=amt;
+  const after=skillLevel(id);
+  if(after>before) log(`🎉 Level up! <em>${SKILLS_DEF.find(s=>s.id===id).name}</em> is now level <em>${after}</em>!`,'system');
+}
+
+function playerAtk(){ return skillLevel('attack')+skillLevel('strength')+(G.equipment.weapon?ITEMS[G.equipment.weapon].bonus.atk||0:0)+1 }
+function playerDef(){ return skillLevel('defence')+(G.equipment.armour?ITEMS[G.equipment.armour].bonus.def||0:0) }
+function combatLevel(){ return Math.floor((skillLevel('attack')+skillLevel('strength')+skillLevel('defence')+skillLevel('hitpoints'))/4) }
+
+// ============================================================
+// RENDER
+// ============================================================
+function renderStats(){
+  document.getElementById('hp-fill').style.width=(G.hp/G.maxHp*100)+'%';
+  document.getElementById('hp-text').textContent=G.hp+'/'+G.maxHp;
+  document.getElementById('pray-fill').style.width=(G.prayer/G.maxPrayer*100)+'%';
+  document.getElementById('run-fill').style.width=(G.run/G.maxRun*100)+'%';
+  document.getElementById('coins-disp').textContent=G.coins;
+  document.getElementById('s-name').textContent=G.playerName;
+  document.getElementById('s-clvl').textContent=combatLevel();
+  document.getElementById('s-xp').textContent=G.totalXp.toLocaleString();
+  document.getElementById('s-kills').textContent=G.kills;
+  document.getElementById('s-deaths').textContent=G.deaths;
+}
+
+function renderSkills(){
+  const el=document.getElementById('skills-list');
+  el.innerHTML='';
+  SKILLS_DEF.forEach(s=>{
+    const lv=skillLevel(s.id);
+    const xp=G.skills[s.id].xp;
+    const nextXp=xpForLevel(lv+1);
+    const thisXp=xpForLevel(lv);
+    const pct=lv>=99?100:Math.floor((xp-thisXp)/(nextXp-thisXp)*100);
+    el.innerHTML+=`<div class="skill-item">
+      <span class="skill-icon" title="${s.name}">${s.icon}</span>
+      <span class="skill-name">${s.name}</span>
+      <span class="skill-lv">${lv}</span>
+      <div class="skill-xpbar"><div class="skill-xpfill" style="width:${pct}%"></div></div>
+    </div>`;
+  });
+}
+
+function renderEquip(){
+  const el=document.getElementById('equip-list');
+  const w=G.equipment.weapon;
+  const a=G.equipment.armour;
+  el.innerHTML=`
+    <div class="stat-row"><span>⚔️ Weapon</span><span class="stat-val">${w?ITEMS[w].icon+' '+ITEMS[w].name:'None'}</span></div>
+    <div class="stat-row"><span>🛡️ Armour</span><span class="stat-val">${a?ITEMS[a].icon+' '+ITEMS[a].name:'None'}</span></div>
+    <div class="stat-row"><span>Attack</span><span class="stat-val">${playerAtk()}</span></div>
+    <div class="stat-row"><span>Defence</span><span class="stat-val">${playerDef()}</span></div>
+  `;
+}
+
+function renderInventory(){
+  const el=document.getElementById('inv-grid');
+  el.innerHTML='';
+  if(!G.inventory.length){el.innerHTML='<div class="inv-empty" style="grid-column:1/-1;padding:4px 0">Empty</div>';return}
+  G.inventory.forEach((id,i)=>{
+    const it=ITEMS[id];
+    if(!it||it.hidden)return;
+    const isEq=(G.equipment.weapon===id||G.equipment.armour===id);
+    el.innerHTML+=`<div class="inv-slot${isEq?' equipped':''}" onclick="useItem('${id}',${i})" title="${it.name}">${it.icon||'📦'} ${it.name}</div>`;
+  });
+}
+
+function renderLocation(){
+  const loc=LOCATIONS[G.location];
+  document.getElementById('loc-icon').textContent=loc.icon;
+  document.getElementById('loc-name').textContent=loc.name;
+  document.getElementById('loc-desc').textContent=loc.desc;
+}
+
+function renderActions(){
+  const loc=LOCATIONS[G.location];
+  const btns=document.getElementById('scene-btns');
+  btns.innerHTML='';
+  if(G.inCombat){
+    btns.innerHTML=`
+      <button class="btn red" onclick="attackEnemy()">⚔️ Attack</button>
+      <button class="btn" onclick="eatFood()">🍗 Eat Food</button>
+      <button class="btn" onclick="tryFlee()">🏃 Flee</button>
+    `;
+    return;
+  }
+  loc.actions.forEach(a=>{
+    switch(a){
+      case 'explore':btns.innerHTML+=`<button class="btn" onclick="explore()">🗺 Explore</button>`;break;
+      case 'talk_guide':btns.innerHTML+=`<button class="btn blue" onclick="talkGuide()">💬 Talk to Guide</button>`;break;
+      case 'fight':btns.innerHTML+=`<button class="btn red" onclick="seekFight()">⚔️ Seek Fight</button>`;break;
+      case 'shop':
+        const shop=getShop();
+        if(shop)btns.innerHTML+=`<button class="btn green" onclick="openShop()">🛒 Shop</button>`;
+        break;
+      case 'bank':btns.innerHTML+=`<button class="btn blue" onclick="openBank()">🏦 Bank</button>`;break;
+      case 'fish':btns.innerHTML+=`<button class="btn" onclick="doFish()">🎣 Fish</button>`;break;
+      case 'mine':btns.innerHTML+=`<button class="btn" onclick="doMine()">⛏️ Mine</button>`;break;
+      case 'travel':btns.innerHTML+=`<button class="btn" onclick="openTravel()">🗺 Travel</button>`;break;
+    }
+  });
+}
+
+function renderAll(){
+  renderStats();renderSkills();renderEquip();renderInventory();renderLocation();renderActions();
+}
+
+// ============================================================
+// LOGGING
+// ============================================================
+function log(msg,type='info'){
+  const el=document.createElement('div');
+  el.className='entry '+(type||'info');
+  el.innerHTML=msg;
+  const logEl=document.getElementById('log');
+  logEl.appendChild(el);
+  logEl.scrollTop=logEl.scrollHeight;
+}
+
+function logSep(){log('<hr style="border:none;border-top:1px solid #3a2a08;margin:2px 0">','info')}
+
+// ============================================================
+// ACTIONS
+// ============================================================
+function explore(){
+  const loc=LOCATIONS[G.location];
+  const roll=Math.random();
+  if(roll<loc.encounterChance){
+    const eKey=loc.encounters[Math.floor(Math.random()*loc.encounters.length)];
+    startCombat(eKey);
+  } else {
+    const events=[
+      ()=>{const c=rand(1,8);G.coins+=c;log(`You find <em>${c} coins</em> on the ground!`,'loot');renderStats();},
+      ()=>{log(`You wander the ${loc.name}. The air is ${['cool','warm','damp','dry'][rand(0,3)]}. Nothing of note.`,'narrate')},
+      ()=>{log(`A traveller passes by. <em>"Watch yourself out there,"</em> they warn.`,'narrate')},
+      ()=>{log(`You find some tracks in the mud. Something large passed through recently...`,'narrate')},
+      ()=>{addXp('hitpoints',2);log(`You jog around and feel healthier. <em>+2 Hitpoints XP</em>`,'system');heal(1);renderStats();},
+      ()=>{log(`The ${loc.icon} ${loc.name} stretches out before you. You feel the adventure calling.`,'narrate')}
+    ];
+    events[rand(0,events.length-1)]();
+  }
+  renderAll();
+}
+
+function seekFight(){
+  const loc=LOCATIONS[G.location];
+  const eKey=loc.encounters[Math.floor(Math.random()*loc.encounters.length)];
+  startCombat(eKey);
+}
+
+function startCombat(eKey){
+  const template=ENEMIES[eKey];
+  G.enemy={...template,hp:template.hp};
+  G.inCombat=true;
+  log(`⚔️ A wild <em>${G.enemy.name}</em> appears!`,'combat');
+  log(`<div class="enemy-card"><div class="enemy-name">${G.enemy.icon} ${G.enemy.name}</div><div style="font-size:12px;color:#a08050">HP: ${G.enemy.hp}/${G.enemy.maxhp} | ATK: ${G.enemy.atk} | DEF: ${G.enemy.def} | XP: ${G.enemy.xp}</div><div class="enemy-hpbar"><div class="enemy-hpfill" id="enemy-hpbar" style="width:100%"></div></div></div>`,'combat');
+  renderActions();
+}
+
+function attackEnemy(){
+  if(!G.inCombat||!G.enemy)return;
+  // Player attacks
+  const pAtk=playerAtk();
+  const eDef=G.enemy.def;
+  const pDmg=Math.max(0,rand(Math.floor(pAtk/2),pAtk)-rand(0,eDef));
+  G.enemy.hp=Math.max(0,G.enemy.hp-pDmg);
+  if(pDmg>0){
+    log(`You hit the <em>${G.enemy.name}</em> for <em>${pDmg} damage</em>! (${G.enemy.hp}/${G.enemy.maxhp} HP remaining)`,'combat');
+    addXp('attack',Math.ceil(pDmg/2));
+    addXp('strength',Math.ceil(pDmg/2));
+  } else {
+    log(`You swing but miss the ${G.enemy.name}!`,'combat');
+  }
+  // Update enemy bar
+  const bar=document.getElementById('enemy-hpbar');
+  if(bar) bar.style.width=(G.enemy.hp/G.enemy.maxhp*100)+'%';
+
+  if(G.enemy.hp<=0){ enemyDied(); return; }
+
+  // Enemy attacks
+  const eDmg=Math.max(0,rand(Math.floor(G.enemy.atk/2),G.enemy.atk)-rand(0,playerDef()));
+  G.hp=Math.max(0,G.hp-eDmg);
+  if(eDmg>0){
+    log(`The <em>${G.enemy.name}</em> hits you for <em>${eDmg} damage</em>! (${G.hp}/${G.maxHp} HP remaining)`,'combat');
+    addXp('defence',Math.ceil(eDmg/3));
+    addXp('hitpoints',Math.ceil(eDmg/4));
+    G.maxHp=Math.max(G.maxHp,10+skillLevel('hitpoints'));
+  } else {
+    log(`The ${G.enemy.name} attacks but you block it!`,'combat');
+  }
+  renderAll();
+  if(G.hp<=0){ playerDied(); }
+}
+
+function enemyDied(){
+  log(`💥 You defeated the <em>${G.enemy.name}</em>!`,'system');
+  G.kills++;
+  addXp('attack',Math.ceil(G.enemy.xp/3));
+  addXp('strength',Math.ceil(G.enemy.xp/3));
+  addXp('hitpoints',Math.ceil(G.enemy.xp/3));
+  // Loot
+  const lootKey=G.enemy.loot[rand(0,G.enemy.loot.length-1)];
+  const coins=rand(G.enemy.coins[0],G.enemy.coins[1]);
+  if(coins>0){ G.coins+=coins; log(`💰 You loot <em>${coins} coins</em>!`,'loot'); }
+  if(lootKey==='coins'){ const c2=rand(5,20);G.coins+=c2;log(`💰 Extra <em>${c2} coins</em> found!`,'loot'); }
+  else if(lootKey!=='nothing'&&ITEMS[lootKey]){
+    G.inventory.push(lootKey);
+    log(`📦 You pick up: <em>${ITEMS[lootKey].icon||''} ${ITEMS[lootKey].name}</em>`,'loot');
+  }
+  // Bones auto-drop
+  if(G.enemy.loot.includes('bones')&&!G.enemy.loot.includes('nothing')){
+    // bones already in loot
+  }
+  G.inCombat=false;
+  G.enemy=null;
+  renderAll();
+}
+
+function playerDied(){
+  G.deaths++;
+  G.inCombat=false;
+  G.enemy=null;
+  log(`💀 You have been slain! You drop your items and respawn at Lumbridge.`,'death');
+  document.getElementById('death-screen').classList.add('open');
+}
+
+function respawn(){
+  G.hp=Math.max(10,Math.floor(G.maxHp/2));
+  G.location='lumbridge';
+  G.inCombat=false;
+  G.enemy=null;
+  G.inventory=[];
+  document.getElementById('death-screen').classList.remove('open');
+  log(`You wake up in <em>Lumbridge</em>. The monks have healed your wounds. Your items are gone.`,'system');
+  renderAll();
+}
+
+function eatFood(){
+  const foodIdx=G.inventory.findIndex(id=>{const it=ITEMS[id];return it&&(it.type==='food'||it.type==='potion')});
+  if(foodIdx===-1){log('You have no food or potions!','info');return;}
+  const id=G.inventory[foodIdx];
+  const it=ITEMS[id];
+  const healed=it.heals||rand(3,8);
+  G.hp=Math.min(G.maxHp,G.hp+healed);
+  G.inventory.splice(foodIdx,1);
+  log(`You eat the <em>${it.icon||''} ${it.name}</em> and recover <em>${healed} HP</em>.`,'system');
+  renderAll();
+}
+
+function tryFlee(){
+  if(Math.random()<0.55){
+    log(`You successfully flee from the ${G.enemy.name}!`,'system');
+    G.inCombat=false;G.enemy=null;
+    G.location='lumbridge';
+    log(`You find yourself back in <em>Lumbridge</em>.`,'info');
+  } else {
+    const dmg=rand(1,G.enemy.atk);
+    G.hp=Math.max(0,G.hp-dmg);
+    log(`You fail to flee! The ${G.enemy.name} hits you for <em>${dmg} damage</em>!`,'combat');
+    if(G.hp<=0){playerDied();return;}
+  }
+  renderAll();
+}
+
+function heal(amt){ G.hp=Math.min(G.maxHp,G.hp+amt); }
+
+function useItem(id,idx){
+  const it=ITEMS[id];
+  if(!it)return;
+  if(it.type==='food'||it.type==='potion'){
+    const h=it.heals||rand(3,8);
+    G.hp=Math.min(G.maxHp,G.hp+h);
+    G.inventory.splice(idx,1);
+    log(`You consume the <em>${it.icon} ${it.name}</em>. Recovered <em>${h} HP</em>.`,'system');
+  } else if(it.type==='weapon'){
+    if(G.equipment.weapon===id){G.equipment.weapon=null;log(`You unequip <em>${it.icon} ${it.name}</em>.`,'system');}
+    else{G.equipment.weapon=id;log(`You equip <em>${it.icon} ${it.name}</em> as your weapon.`,'system');}
+  } else if(it.type==='armour'){
+    if(G.equipment.armour===id){G.equipment.armour=null;log(`You unequip <em>${it.icon} ${it.name}</em>.`,'system');}
+    else{G.equipment.armour=id;log(`You equip <em>${it.icon} ${it.name}</em>.`,'system');}
+  } else if(it.buryXp){
+    G.inventory.splice(idx,1);
+    addXp('prayer',it.buryXp);
+    log(`You bury the <em>${it.icon} ${it.name}</em>. <em>+${it.buryXp} Prayer XP</em>`,'system');
+  } else if(it.value&&it.value>0){
+    const shopVal=Math.floor(it.value*0.6);
+    showModal(`Use ${it.icon} ${it.name}`,`<p>This item is worth about <strong style="color:#f0c040">${shopVal} coins</strong> to a merchant.</p><p style="margin-top:8px">What do you want to do?</p>`,[
+      {label:'💰 Sell ('+shopVal+'g)',cls:'green',action:()=>{G.inventory.splice(idx,1);G.coins+=shopVal;log(`You sell the <em>${it.icon} ${it.name}</em> for <em>${shopVal} coins</em>.`,'loot');renderAll();}},
+      {label:'↩ Keep',cls:'',action:()=>{}}
+    ]);
+    return;
+  } else {
+    log(`You examine the <em>${it.name}</em>. Nothing useful to do with it here.`,'info');
+  }
+  renderAll();
+}
+
+function talkGuide(){
+  log(`🧙 The <em>Lumbridge Guide</em> greets you: <em>"Welcome, adventurer! Explore the world, fight monsters, collect loot, and level your skills. Buy equipment at the shop, and beware the Wilderness!"</em>`,'narrate');
+}
+
+function doFish(){
+  const roll=Math.random();
+  if(roll<0.5){
+    addXp('fishing',rand(10,20));
+    G.inventory.push('raw_chicken');// reuse as fish stand-in
+    log(`🎣 You catch a fish! <em>Fishing XP gained</em>.`,'loot');
+  } else {
+    addXp('fishing',rand(3,7));
+    log(`🎣 The fish aren't biting. You gain a little <em>Fishing XP</em> anyway.`,'info');
+  }
+  renderAll();
+}
+
+function doMine(){
+  const roll=Math.random();
+  if(roll<0.55){
+    addXp('mining',rand(15,30));
+    const c=rand(1,5);G.coins+=c;
+    log(`⛏️ You mine some ore and sell it. <em>+${c} coins, Mining XP gained</em>.`,'loot');
+  } else {
+    addXp('mining',rand(5,10));
+    log(`⛏️ The rock is tough. You chip away for a while. <em>+Mining XP</em>.`,'info');
+  }
+  renderAll();
+}
+
+function getShop(){
+  if(G.location==='lumbridge')return SHOP_LUMBRIDGE;
+  if(G.location==='draynor')return SHOP_DRAYNOR;
+  if(G.location==='al_kharid')return SHOP_AL_KHARID;
+  return null;
+}
+
+function openShop(){
+  const shop=getShop();
+  if(!shop)return;
+  let html='';
+  shop.forEach(id=>{
+    const it=ITEMS[id];
+    html+=`<div class="shop-item">
+      <span class="shop-name">${it.icon||'📦'} ${it.name}</span>
+      <span class="shop-price">${it.shopPrice}g</span>
+      <button class="shop-buy" onclick="buyItem('${id}')">Buy</button>
+    </div>`;
+  });
+  html+=`<p style="margin-top:10px;font-size:12px;color:#a08050">Your coins: <strong style="color:#f0c040">${G.coins}</strong></p>`;
+  showModal('🛒 Shop',html,[{label:'Close',cls:'',action:()=>{}}]);
+}
+
+function buyItem(id){
+  const it=ITEMS[id];
+  if(G.coins<it.shopPrice){log(`You can't afford <em>${it.name}</em>!`,'info');closeModal();return;}
+  G.coins-=it.shopPrice;
+  G.inventory.push(id);
+  log(`You buy <em>${it.icon} ${it.name}</em> for <em>${it.shopPrice} coins</em>.`,'loot');
+  closeModal();
+  openShop();
+  renderAll();
+}
+
+function openBank(){
+  showModal('🏦 Lumbridge Bank',`<p>The bank teller smiles warmly.</p><p style="margin-top:8px;color:#a08050"><em>"We're still setting up our systems, adventurer. Come back soon!"</em></p>`,[{label:'Leave',cls:'',action:()=>{}}]);
+}
+
+function openTravel(){
+  const dests=TRAVEL_MAP[G.location];
+  let html='<p style="margin-bottom:10px;color:#a08050">Where would you like to travel?</p>';
+  const btns=dests.map(d=>{
+    const loc=LOCATIONS[d];
+    return {label:loc.icon+' '+loc.name,cls:'',action:()=>{
+      G.location=d;
+      log(`You travel to <em>${loc.icon} ${loc.name}</em>.`,'narrate');
+      log(loc.desc,'info');
+      G.run=Math.max(20,G.run-20);
+      renderAll();
+    }};
+  });
+  btns.push({label:'↩ Stay',cls:'',action:()=>{}});
+  showModal('🗺 Travel',html,btns);
+}
+
+// ============================================================
+// MODAL
+// ============================================================
+function showModal(title,bodyHtml,buttons){
+  document.getElementById('modal-title').textContent=title;
+  document.getElementById('modal-body').innerHTML=bodyHtml;
+  const btnsEl=document.getElementById('modal-btns');
+  btnsEl.innerHTML='';
+  buttons.forEach(b=>{
+    const btn=document.createElement('button');
+    btn.className='btn '+(b.cls||'');
+    btn.textContent=b.label;
+    btn.onclick=()=>{closeModal();b.action();};
+    btnsEl.appendChild(btn);
+  });
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function closeModal(){ document.getElementById('modal-overlay').classList.remove('open'); }
+document.getElementById('modal-overlay').addEventListener('click',e=>{if(e.target===document.getElementById('modal-overlay'))closeModal();});
+
+// ============================================================
+// UTILS
+// ============================================================
+function rand(a,b){return Math.floor(Math.random()*(b-a+1))+a}
+
+// ============================================================
+// INIT
+// ============================================================
+initState();
+renderAll();
+log(`Welcome to <em>Gielinor Tales</em>! You stand at the gates of Lumbridge.`,'system');
+log(`Type actions using the buttons below. Click inventory items to use them. Good luck, adventurer!`,'info');
+logSep();
+log(`🧙 A guide waves at you. <em>"Talk to me when you need help."</em>`,'narrate');
+</script>
+</body>
+</html>
