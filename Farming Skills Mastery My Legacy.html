@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Farming Skill Master Legacy</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+    body { margin:0; padding:0; background:#0a1f0a; color:#0f0; font-family:'Press Start 2P', system-ui; overflow:hidden; }
+    #game { display:flex; flex-direction:column; height:100vh; }
+    header { background:#000; padding:10px; text-align:center; border-bottom:4px solid #0f0; }
+    .container { display:flex; flex:1; overflow:hidden; }
+    #sidebar { width:280px; background:#112211; padding:10px; overflow-y:auto; border-right:4px solid #0f0; }
+    #main { flex:1; position:relative; background:#0a2a0a; }
+    canvas { image-rendering:pixelated; display:block; margin:20px auto; background:#0a2a0a; box-shadow:0 0 20px #0f0; }
+    button { font-family:'Press Start 2P'; padding:10px; margin:6px 0; background:#000; color:#0f0; border:2px solid #0f0; cursor:pointer; width:100%; }
+    button:hover { background:#0f0; color:#000; }
+    .tab { display:none; }
+    .tab.active { display:block; }
+    .slot { background:#000; padding:8px; margin:8px 0; border:2px solid #0f0; font-size:12px; }
+</style>
+</head>
+<body>
+<div id="game">
+    <header><h1>FARMING SKILL MASTER LEGACY</h1></header>
+    <div class="container">
+        <div id="sidebar">
+            <div id="player-info"></div>
+            <hr>
+            <button onclick="showTab('farm')">🌾 Farm</button>
+            <button onclick="showTab('shop')">🛒 Shop</button>
+            <button onclick="showTab('inn')">🏠 Inn</button>
+            <button onclick="showTab('inventory')">📦 Inventory</button>
+            <button onclick="showTab('save')">💾 Save / Load</button>
+            
+            <div id="farm-tab" class="tab active">
+                <h3>Crymea Village</h3>
+                <p>Day: <span id="day">1</span> | Weather: <span id="weather">Sunny</span></p>
+                <button onclick="plantCrop()">Plant Wheat (10g)</button><br>
+                <button onclick="waterAll()">💧 Water All Plots</button><br>
+                <button onclick="harvestAll()">🌾 Harvest Ready Crops</button>
+            </div>
+
+            <div id="shop-tab" class="tab">
+                <h3>Crymea Store</h3>
+                <div id="shop-items"></div>
+            </div>
+
+            <div id="inn-tab" class="tab">
+                <h3>Crymea Inn</h3>
+                <button onclick="restAtInn()">Rest for the night (500g)</button>
+            </div>
+
+            <div id="inventory-tab" class="tab">
+                <h3>Inventory</h3>
+                <div id="inventory-list" style="font-size:12px;"></div>
+            </div>
+
+            <div id="save-tab" class="tab">
+                <h3>Save Slots (8)</h3>
+                <div id="save-slots"></div>
+            </div>
+        </div>
+
+        <div id="main">
+            <canvas id="gameCanvas" width="800" height="500"></canvas>
+        </div>
+    </div>
+</div>
+
+<script>
+// ============== GAME DATA ==============
+let player = { name: "Farmer", level: 1, exp: 0, gold: 800, stamina: 100, rank: "Bronze", day: 1, weather: "Sunny" };
+const ranks = ["Bronze","Iron","Silver","Gold","Diamond","Adamantite","Dragon Glass","Mythical","Celestial"];
+
+let plots = Array(9).fill().map(() => ({crop:null, growth:0, watered:false}));
+let inventory = { "Wheat": {qty:0, value:15}, "Tomato": {qty:0, value:25} };
+
+let gameInterval;
+
+// ============== SAVE SYSTEM ==============
+function saveGame(slot) {
+    const saveData = {player, plots, inventory, day:player.day};
+    localStorage.setItem(`FSML_slot${slot}`, JSON.stringify(saveData));
+    alert(`✅ Saved to Slot ${slot}`);
+    renderSaveSlots();
+}
+
+function loadGame(slot) {
+    const data = localStorage.getItem(`FSML_slot${slot}`);
+    if (data) {
+        const loaded = JSON.parse(data);
+        Object.assign(player, loaded.player);
+        plots = loaded.plots || plots;
+        inventory = loaded.inventory || inventory;
+        player.day = loaded.day || 1;
+        alert(`✅ Loaded Slot ${slot}`);
+        updateUI(); draw();
+    }
+}
+
+function deleteSave(slot) {
+    if (confirm(`Delete Slot ${slot}?`)) {
+        localStorage.removeItem(`FSML_slot${slot}`);
+        renderSaveSlots();
+    }
+}
+
+function renderSaveSlots() {
+    let html = "";
+    for (let i = 1; i <= 8; i++) {
+        const exists = localStorage.getItem(`FSML_slot${i}`);
+        html += `<div class="slot">Slot ${i} ${exists?'✅':''}<br>
+            <button onclick="saveGame(${i})">Save</button>
+            <button onclick="loadGame(${i})">Load</button>
+            <button onclick="deleteSave(${i})">Delete</button>
+        </div>`;
+    }
+    document.getElementById("save-slots").innerHTML = html;
+}
+
+// ============== UI ==============
+function updateUI() {
+    document.getElementById("player-info").innerHTML = `<b>${player.name}</b><br>Lv.${player.level} ${player.rank}<br>💰 ${player.gold}g`;
+    document.getElementById("day").textContent = Math.floor(player.day);
+    document.getElementById("weather").textContent = player.weather;
+
+    let invHTML = "";
+    for (let item in inventory) {
+        if (inventory[item].qty > 0) invHTML += `${item} ×${inventory[item].qty}<br>`;
+    }
+    document.getElementById("inventory-list").innerHTML = invHTML || "Empty...";
+}
+
+function showTab(tab) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.getElementById(tab + '-tab').classList.add('active');
+    if (tab === "save") renderSaveSlots();
+}
+
+// ============== FARMING ==============
+function plantCrop() {
+    if (player.gold < 10) return alert("Not enough gold!");
+    const empty = plots.findIndex(p => !p.crop);
+    if (empty === -1) return alert("No empty plots!");
+    player.gold -= 10;
+    plots[empty] = {crop:"Wheat", growth:0, watered:false};
+    playSound("plant");
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Farming Skill Master Legacy</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+    body { margin:0; padding:0; background:#0a1f0a; color:#0f0; font-family:'Press Start 2P', system-ui; overflow:hidden; }
+    #game { display:flex; flex-direction:column; height:100vh; }
+    header { background:#000; padding:10px; text-align:center; border-bottom:4px solid #0f0; }
+    .container { display:flex; flex:1; overflow:hidden; }
+    #sidebar { width:280px; background:#112211; padding:10px; overflow-y:auto; border-right:4px solid #0f0; }
+    #main { flex:1; position:relative; background:#0a2a0a; }
+    canvas { image-rendering:pixelated; display:block; margin:20px auto; background:#0a2a0a; box-shadow:0 0 20px #0f0; }
+    button { font-family:'Press Start 2P'; padding:10px; margin:6px 0; background:#000; color:#0f0; border:2px solid #0f0; cursor:pointer; width:100%; }
+    button:hover { background:#0f0; color:#000; }
+    .tab { display:none; }
+    .tab.active { display:block; }
+    .slot { background:#000; padding:8px; margin:8px 0; border:2px solid #0f0; font-size:12px; }
+</style>
+</head>
+<body>
+<div id="game">
+    <header><h1>FARMING SKILL MASTER LEGACY</h1></header>
+    <div class="container">
+        <div id="sidebar">
+            <div id="player-info"></div>
+            <hr>
+            <button onclick="showTab('farm')">🌾 Farm</button>
+            <button onclick="showTab('shop')">🛒 Shop</button>
+            <button onclick="showTab('inn')">🏠 Inn</button>
+            <button onclick="showTab('inventory')">📦 Inventory</button>
+            <button onclick="showTab('save')">💾 Save / Load</button>
+            
+            <div id="farm-tab" class="tab active">
+                <h3>Crymea Village</h3>
+                <p>Day: <span id="day">1</span> | Weather: <span id="weather">Sunny</span></p>
+                <button onclick="plantCrop()">Plant Wheat (10g)</button><br>
+                <button onclick="waterAll()">💧 Water All Plots</button><br>
+                <button onclick="harvestAll()">🌾 Harvest Ready Crops</button>
+            </div>
+
+            <div id="shop-tab" class="tab">
+                <h3>Crymea Store</h3>
+                <div id="shop-items"></div>
+            </div>
+
+            <div id="inn-tab" class="tab">
+                <h3>Crymea Inn</h3>
+                <button onclick="restAtInn()">Rest for the night (500g)</button>
+            </div>
+
+            <div id="inventory-tab" class="tab">
+                <h3>Inventory</h3>
+                <div id="inventory-list" style="font-size:12px;"></div>
+            </div>
+
+            <div id="save-tab" class="tab">
+                <h3>Save Slots (8)</h3>
+                <div id="save-slots"></div>
+            </div>
+        </div>
+
+        <div id="main">
+            <canvas id="gameCanvas" width="800" height="500"></canvas>
+        </div>
+    </div>
+</div>
+
+<script>
+// ============== GAME DATA ==============
+let player = { name: "Farmer", level: 1, exp: 0, gold: 800, stamina: 100, rank: "Bronze", day: 1, weather: "Sunny" };
+const ranks = ["Bronze","Iron","Silver","Gold","Diamond","Adamantite","Dragon Glass","Mythical","Celestial"];
+
+let plots = Array(9).fill().map(() => ({crop:null, growth:0, watered:false}));
+let inventory = { "Wheat": {qty:0, value:15}, "Tomato": {qty:0, value:25} };
+
+let gameInterval;
+
+// ============== SAVE SYSTEM ==============
+function saveGame(slot) {
+    const saveData = {player, plots, inventory, day:player.day};
+    localStorage.setItem(`FSML_slot${slot}`, JSON.stringify(saveData));
+    alert(`✅ Saved to Slot ${slot}`);
+    renderSaveSlots();
+}
+
+function loadGame(slot) {
+    const data = localStorage.getItem(`FSML_slot${slot}`);
+    if (data) {
+        const loaded = JSON.parse(data);
+        Object.assign(player, loaded.player);
+        plots = loaded.plots || plots;
+        inventory = loaded.inventory || inventory;
+        player.day = loaded.day || 1;
+        alert(`✅ Loaded Slot ${slot}`);
+        updateUI(); draw();
+    }
+}
+
+function deleteSave(slot) {
+    if (confirm(`Delete Slot ${slot}?`)) {
+        localStorage.removeItem(`FSML_slot${slot}`);
+        renderSaveSlots();
+    }
+}
+
+function renderSaveSlots() {
+    let html = "";
+    for (let i = 1; i <= 8; i++) {
+        const exists = localStorage.getItem(`FSML_slot${i}`);
+        html += `<div class="slot">Slot ${i} ${exists?'✅':''}<br>
+            <button onclick="saveGame(${i})">Save</button>
+            <button onclick="loadGame(${i})">Load</button>
+            <button onclick="deleteSave(${i})">Delete</button>
+        </div>`;
+    }
+    document.getElementById("save-slots").innerHTML = html;
+}
+
+// ============== UI ==============
+function updateUI() {
+    document.getElementById("player-info").innerHTML = `<b>${player.name}</b><br>Lv.${player.level} ${player.rank}<br>💰 ${player.gold}g`;
+    document.getElementById("day").textContent = Math.floor(player.day);
+    document.getElementById("weather").textContent = player.weather;
+
+    let invHTML = "";
+    for (let item in inventory) {
+        if (inventory[item].qty > 0) invHTML += `${item} ×${inventory[item].qty}<br>`;
+    }
+    document.getElementById("inventory-list").innerHTML = invHTML || "Empty...";
+}
+
+function showTab(tab) {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    document.getElementById(tab + '-tab').classList.add('active');
+    if (tab === "save") renderSaveSlots();
+}
+
+// ============== FARMING ==============
+function plantCrop() {
+    if (player.gold < 10) return alert("Not enough gold!");
+    const empty = plots.findIndex(p => !p.crop);
+    if (empty === -1) return alert("No empty plots!");
+    player.gold -= 10;
+    plots[empty] = {crop:"Wheat", growth:0, watered:false};
+    playSound("plant");
+    draw(); updateUI();
+}
+
+function waterAll() {
+    plots.forEach(p => { if (p.crop) p.watered = true; });
+    playSound("water"); draw();
+}
+
+function harvestAll() {
+    let count = 0;
+    plots.forEach((p,i) => {
+        if (p.crop && p.growth >= 100) {
+            inventory[p.crop].qty = (inventory[p.crop].qty||0) + 4;
+            player.exp += 15; player.gold += 30;
+            plots[i] = {crop:null, growth:0, watered:false};
+            count++;
+        }
+    });
+    if (count > 0) { playSound("harvest"); checkLevelUp(); updateUI(); draw(); }
+}
+
+function checkLevelUp() {
+    while (player.exp >= player.level * 60) {
+        player.exp -= player.level * 60;
+        player.level++;
+        const idx = Math.min(Math.floor((player.level-1)/10), ranks.length-1);
+        player.rank = ranks[idx];
+        alert(`🎉 LEVEL UP! Now Level ${player.level} — ${player.rank}`);
+    }
+}
+
+// ============== CANVAS ==============
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+
+function draw() {
+    ctx.clearRect(0,0,800,500);
+    ctx.fillStyle = "#0a3a0a"; ctx.fillRect(0,0,800,500);
+    for (let i = 0; i < 9; i++) {
+        const x = 80 + (i % 3) * 180;
+        const y = 60 + Math.floor(i/3) * 130;
+        ctx.fillStyle = "#4a2a1a"; ctx.fillRect(x, y, 140, 100);
+        if (plots[i].crop) {
+            const g = plots[i].growth / 100;
+            ctx.fillStyle = g > 0.6 ? "#00ff00" : "#88aa44";
+            ctx.fillRect(x+25, y+20, 90, 55);
+            ctx.fillStyle = "#ffdd00"; ctx.fillRect(x+55, y+30, 25, 25);
+        }
+    }
+    ctx.fillStyle = "#ffcc00"; ctx.fillRect(620, 320, 50, 80); // farmer
+}
+
+// ============== SOUNDS ==============
+const audio = new (window.AudioContext || window.webkitAudioContext)();
+function playSound(type) {
+    const o = audio.createOscillator();
+    const g = audio.createGain();
+    o.connect(g); g.connect(audio.destination);
+    if (type === "plant") o.frequency.value = 250;
+    else if (type === "water") o.frequency.value = 700;
+    else if (type === "harvest") o.frequency.value = 900;
+    g.gain.value = 0.3;
+    o.start(); o.stop(audio.currentTime + 0.15);
+}
+
+// ============== SHOP & INN ==============
+function renderShop() {
+    document.getElementById("shop-items").innerHTML = `
+        <button onclick="buyItem(0)">Tomato Seeds (25g)</button><br><br>
+        <button onclick="buyItem(1)">Stamina Potion (80g)</button>
+    `;
+}
+window.buyItem = function(n) {
+    if (n===0 && player.gold>=25) { player.gold-=25; inventory["Tomato"].qty++; alert("Bought Tomato Seeds"); }
+    if (n===1 && player.gold>=80) { player.gold-=80; player.stamina=100; alert("Stamina restored!"); }
+    updateUI();
+};
+window.restAtInn = function() {
+    if (player.gold >= 500) {
+        player.gold -= 500;
+        player.stamina = 100;
+        player.day = Math.floor(player.day) + 1;
+        alert("You rested well... New day begins 🌅");
+        updateUI();
+    }
+};
+
+// ============== GAME LOOP ==============
+function gameTick() {
+    player.day += 0.08;
+    if (Math.random() < 0.08) player.weather = ["Sunny","Rain","Cloudy","Windy"][Math.floor(Math.random()*4)];
+    plots.forEach(p => { if (p.crop) p.growth = Math.min(100, p.growth + (p.watered ? 7 : 2.5)); });
+    updateUI(); draw();
+}
+
+// ============== START GAME ==============
+setTimeout(() => {
+    const name = prompt("🌱 Welcome to Farming Skill Master Legacy!\n\nEnter your farmer name:", "Alex");
+    if (name && name.trim()) player.name = name.trim();
+    updateUI(); draw(); renderShop(); renderSaveSlots();
+    gameInterval = setInterval(gameTick, 700);
+}, 200);
+</script>
+</body>
+</html>
